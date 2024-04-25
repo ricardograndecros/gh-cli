@@ -38,7 +38,8 @@ func AuthFlow(oauthHost string, IO *iostreams.IOStreams, notice string, addition
 		httpClient.Transport = verboseLog(IO.ErrOut, logTraffic, IO.ColorEnabled())(httpClient.Transport)
 	}
 
-	minimumScopes := []string{"repo", "read:org", "gist"}
+	// extra scopes needed for the new gh auth switch (-g or -l) features
+	minimumScopes := []string{"repo", "read:org", "gist", "read:user", "user:email"}
 	scopes := append(minimumScopes, additionalScopes...)
 
 	callbackURI := "http://127.0.0.1/callback"
