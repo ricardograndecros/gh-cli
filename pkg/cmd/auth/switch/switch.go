@@ -3,9 +3,11 @@ package authswitch
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 
 	"github.com/MakeNowJust/heredoc"
+	"github.com/cli/cli/v2/api"
 	"github.com/cli/cli/v2/internal/config"
 	"github.com/cli/cli/v2/pkg/cmd/auth/shared"
 	"github.com/cli/cli/v2/pkg/cmdutil"
@@ -13,19 +15,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type gitConfigurator interface {
+	SwitchLocalGitUsernameAndEmail(email, username string) error
+	SwitchGlobalGitUsernameAndEmail(email, username string) error
+}
+
 type SwitchOptions struct {
-	IO       *iostreams.IOStreams
-	Config   func() (config.Config, error)
-	Prompter shared.Prompt
-	Hostname string
-	Username string
+	IO                    *iostreams.IOStreams
+	Config                func() (config.Config, error)
+	HttpClient            func() (*http.Client, error)
+	Prompter              shared.Prompt
+	Hostname              string
+	Username              string
+	SwitchGitLocalConfig  bool
+	SwitchGitGlobalConfig bool
+	gitConfigure          gitConfigurator
 }
 
 func NewCmdSwitch(f *cmdutil.Factory, runF func(*SwitchOptions) error) *cobra.Command {
 	opts := SwitchOptions{
-		IO:       f.IOStreams,
-		Config:   f.Config,
-		Prompter: f.Prompter,
+		IO:         f.IOStreams,
+		Config:     f.Config,
+		Prompter:   f.Prompter,
+		HttpClient: f.HttpClient,
 	}
 
 	cmd := &cobra.Command{
@@ -55,6 +67,14 @@ func NewCmdSwitch(f *cmdutil.Factory, runF func(*SwitchOptions) error) *cobra.Co
 			if runF != nil {
 				return runF(&opts)
 			}
+			opts.gitConfigure = &shared.GitCredentialFlow{
+				Executable: f.Executable(),
+				GitClient:  f.GitClient,
+			}
+
+			if runF != nil {
+				return runF(&opts)
+			}
 
 			return switchRun(&opts)
 		},
@@ -62,6 +82,8 @@ func NewCmdSwitch(f *cmdutil.Factory, runF func(*SwitchOptions) error) *cobra.Co
 
 	cmd.Flags().StringVarP(&opts.Hostname, "hostname", "h", "", "The hostname of the GitHub instance to switch account for")
 	cmd.Flags().StringVarP(&opts.Username, "user", "u", "", "The account to switch to")
+	cmd.Flags().BoolVarP(&opts.SwitchGitLocalConfig, "git-local-config", "l", false, "Switch the local git configuration to the selected account")
+	cmd.Flags().BoolVarP(&opts.SwitchGitGlobalConfig, "git-global-config", "g", false, "Switch the global git configuration to the selected account")
 
 	return cmd
 }
@@ -170,8 +192,47 @@ func switchRun(opts *SwitchOptions) error {
 		return err
 	}
 
+	if opts.SwitchGitLocalConfig {
+		username, email, err := fetchCurrentLoginNameAndEmail(opts, hostname)
+		if err != nil {
+			return err
+		}
+		err = opts.gitConfigure.SwitchLocalGitUsernameAndEmail(email, username)
+		if err != nil {
+			return err
+		}
+	} else if opts.SwitchGitGlobalConfig {
+		username, email, err := fetchCurrentLoginNameAndEmail(opts, hostname)
+		if err != nil {
+			return err
+		}
+		err = opts.gitConfigure.SwitchGlobalGitUsernameAndEmail(email, username)
+		if err != nil {
+			return err
+		}
+	}
+
 	fmt.Fprintf(opts.IO.ErrOut, "%s Switched active account for %s to %s\n",
 		cs.SuccessIcon(), hostname, cs.Bold(username))
 
 	return nil
+}
+
+func fetchCurrentLoginNameAndEmail(opts *SwitchOptions, hostname string) (string, string, error) {
+	httpClient, err := opts.HttpClient()
+	if err != nil {
+		return "", "", err
+	}
+
+	apiClient := api.NewClientFromHTTP(httpClient)
+
+	user, email, err := api.CurrentLoginNameAndEmail(apiClient, hostname)
+	if err != nil {
+		return "", "", err
+	}
+	if email == "" {
+		// default noreply github email
+		email = fmt.Sprintf("%s@users.noreply.github.com", user)
+	}
+	return user, email, nil
 }

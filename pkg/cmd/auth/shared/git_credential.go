@@ -60,6 +60,54 @@ func (flow *GitCredentialFlow) Setup(hostname, username, authToken string) error
 	return flow.gitCredentialSetup(hostname, username, authToken)
 }
 
+func (flow *GitCredentialFlow) SwitchLocalGitUsernameAndEmail(email, username string) error {
+	ctx := context.Background()
+
+	preConfiguredCmd, err := flow.GitClient.Command(ctx, "config", "--local", "user.name", username)
+	if err != nil {
+		return err
+	}
+	_, err = preConfiguredCmd.Output()
+	if err != nil {
+		return err
+	}
+
+	preConfiguredCmd, err = flow.GitClient.Command(ctx, "config", "--local", "user.email", email)
+	if err != nil {
+		return err
+	}
+	_, err = preConfiguredCmd.Output()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (flow *GitCredentialFlow) SwitchGlobalGitUsernameAndEmail(email, username string) error {
+	ctx := context.Background()
+
+	preConfiguredCmd, err := flow.GitClient.Command(ctx, "config", "--global", "user.name", username)
+	if err != nil {
+		return err
+	}
+	_, err = preConfiguredCmd.Output()
+	if err != nil {
+		return err
+	}
+
+	preConfiguredCmd, err = flow.GitClient.Command(ctx, "config", "--global", "user.email", email)
+	if err != nil {
+		return err
+	}
+	_, err = preConfiguredCmd.Output()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (flow *GitCredentialFlow) gitCredentialSetup(hostname, username, password string) error {
 	gitClient := flow.GitClient
 	ctx := context.Background()
