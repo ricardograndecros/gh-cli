@@ -14,6 +14,17 @@ func CurrentLoginName(client *Client, hostname string) (string, error) {
 	return query.Viewer.Login, err
 }
 
+func CurrentLoginNameAndEmail(client *Client, hostname string) (string, string, error) {
+	var query struct {
+		Viewer struct {
+			Login string
+			Email string
+		}
+	}
+	err := client.Query(hostname, "UserCurrent", &query, nil)
+	return query.Viewer.Login, query.Viewer.Email, err
+}
+
 func CurrentLoginNameAndOrgs(client *Client, hostname string) (string, []string, error) {
 	var query struct {
 		Viewer struct {
