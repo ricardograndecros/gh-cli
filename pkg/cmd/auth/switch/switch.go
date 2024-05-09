@@ -201,6 +201,9 @@ func switchRun(opts *SwitchOptions) error {
 		if err != nil {
 			return err
 		}
+		fmt.Fprintf(opts.IO.ErrOut, "%s Set git --local config to user.name=%s and user.email=%s\n",
+			cs.SuccessIcon(), cs.CyanBold(username), cs.CyanBold(email))
+
 	} else if opts.SwitchGitGlobalConfig {
 		username, email, err := fetchCurrentLoginNameAndEmail(opts, hostname)
 		if err != nil {
@@ -210,6 +213,8 @@ func switchRun(opts *SwitchOptions) error {
 		if err != nil {
 			return err
 		}
+		fmt.Fprintf(opts.IO.ErrOut, "%s Set git --global config to user.name=%s and user.email=%s\n",
+			cs.SuccessIcon(), cs.CyanBold(username), cs.CyanBold(email))
 	}
 
 	fmt.Fprintf(opts.IO.ErrOut, "%s Switched active account for %s to %s\n",
